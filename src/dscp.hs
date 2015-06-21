@@ -39,7 +39,13 @@ checkDirs (sourceRootDir, targetRootDir) = do
      (False:_)   -> Left $ "Source directory " ++ sourceRootDir ++ " does not exist"
      otherwise -> Right ( (decodeString sourceRootDir), (decodeString targetRootDir) )
 
+printActionSummary :: String -> FilePath -> FilePath -> [FilePath] -> IO ()
+printActionSummary name srcRoot dstRoot dirs = do
+  putStrLn "Copying files:"
+
+
 main = do
+  let name = drawableName
   checkResult <- checkDirs (sourceRootDir,targetRootDir)
   (srcRoot, dstRoot) <- case checkResult of
     Left error -> do putStrLn error; exitFailure
@@ -54,3 +60,6 @@ main = do
   putStrLn $ "srcDirs: " ++ (show sDrawableDirs)
   putStrLn $ "dstDirs: " ++ (show dDrawableDirs)
   putStrLn $ "commonDirs: " ++ (show commonDirNames)
+  -- TODO find a correct extension?
+  -- TODO check which dirs contain the needed file and warn if it misses in some configs
+  printActionSummary name srcRoot dstRoot commonDirNames
