@@ -7,6 +7,7 @@ import qualified Control.Foldl as Fold
 import Prelude hiding (FilePath)
 import Data.List (intersect)
 import Control.Monad (filterM)
+import Data.Either (rights)
 
 -- lists all possible and supported names of drawable directory names
 dirNames = [ "drawable-ldpi",
@@ -21,14 +22,14 @@ targetRootDir :: String
 targetRootDir = "/tmp/target"
 
 sourceRootDir :: String
-sourceRootDir = "/tmp/source"
+sourceRootDir = "/home/dima/projects/treto/TretoAndroid/app/src/main/res"
 
 drawableName :: String
-drawableName = "ic_launcher"
+drawableName = "ic_home"
 
 drawableDirsIn :: FilePath -> Shell FilePath
 drawableDirsIn path = find (choice dirPatterns) path
-               where dirPatterns = map has dirNames
+               where dirPatterns = map suffix dirNames
 
 type ErrorString = String
 
@@ -56,12 +57,16 @@ fileListInRoot name root dirs = do
 getDestPath :: String -> FilePath -> FilePath -> FilePath
 getDestPath name root filename = root </> (dirname filename) </> (drawableFilename name)
 
-printActionSummary :: String -> FilePath -> FilePath -> [FilePath] -> IO ()
-printActionSummary name srcRoot dstRoot dirs = do
-  sourceFiles <- fileListInRoot name srcRoot dirs
-  let destFiles = map (getDestPath name dstRoot) sourceFiles
+printActionSummary :: [FilePath] -> [FilePath] -> IO ()
+printActionSummary sourceFiles destFiles = do
   putStrLn "Copying files:"
-  mapM_ (\(src,dst) -> putStrLn $ show src ++ " => " ++ show dst) (zip sourceFiles destFiles)
+  mapM_ (\(src,dst) -> putStrLn $ show src ++ " => " ++ show dst) (zip sourceNames destNames)
+  where sourceNames = rights $ map toText sourceFiles
+        destNames = rights $ map toText destFiles
+
+copyFiles :: [FilePath] -> [FilePath] -> IO ()
+copyFiles sourceFiles destFiles = do
+  mapM_ (\(src,dst) -> cp src dst) (zip sourceFiles destFiles)
 
 main = do
   let name = drawableName
@@ -69,16 +74,20 @@ main = do
   (srcRoot, dstRoot) <- case checkResult of
     Left error -> do putStrLn error; exitFailure
     Right dirs -> return dirs
-  putStrLn $ "srcRoot: " ++ (show srcRoot)
-  putStrLn $ "dstRoot: " ++ (show dstRoot)
   sDrawableDirs <- fold (drawableDirsIn srcRoot) Fold.list
   dDrawableDirs <- fold (drawableDirsIn dstRoot) Fold.list
   let sDirNames = map filename sDrawableDirs
   let dDirNames = map filename dDrawableDirs
   let commonDirNames = intersect sDirNames dDirNames
-  putStrLn $ "srcDirs: " ++ (show sDrawableDirs)
-  putStrLn $ "dstDirs: " ++ (show dDrawableDirs)
-  putStrLn $ "commonDirs: " ++ (show commonDirNames)
+  -- putStrLn $ "srcRoot: " ++ (show srcRoot)
+  -- putStrLn $ "dstRoot: " ++ (show dstRoot)
+  -- putStrLn $ "srcDirs: " ++ (show sDrawableDirs)
+  -- putStrLn $ "dstDirs: " ++ (show dDrawableDirs)
+  -- putStrLn $ "commonDirs: " ++ (show commonDirNames)
   -- TODO find a correct extension?
   -- TODO check which dirs contain the needed file and warn if it misses in some configs
-  printActionSummary name srcRoot dstRoot commonDirNames
+  sourceFiles <- fileListInRoot name srcRoot commonDirNames
+  let destFiles = map (getDestPath name dstRoot) sourceFiles
+  printActionSummary sourceFiles destFiles
+  copyFiles sourceFiles destFiles
+  putStrLn $ "Successfully copied " ++ (show $ length sourceFiles) ++ " files"
