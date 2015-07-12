@@ -2,11 +2,12 @@
 
 import Turtle
 import System.Exit
-import Filesystem.Path.CurrentOS
+import System.Environment
+import Filesystem.Path.CurrentOS hiding (null)
 import qualified Control.Foldl as Fold
 import Prelude hiding (FilePath)
 import Data.List (intersect)
-import Control.Monad (filterM)
+import Control.Monad (filterM, when)
 import Data.Either (rights)
 
 -- lists all possible and supported names of drawable directory names
@@ -18,14 +19,14 @@ dirNames = [ "drawable-ldpi",
              "drawable-xxxhdpi"
            ]
 
-targetRootDir :: String
-targetRootDir = "/tmp/target"
+-- targetRootDir :: String
+-- targetRootDir = "/tmp/target"
 
-sourceRootDir :: String
-sourceRootDir = "/home/dima/projects/treto/TretoAndroid/app/src/main/res"
+-- sourceRootDir :: String
+-- sourceRootDir = "/home/dima/projects/treto/TretoAndroid/app/src/main/res"
 
-drawableName :: String
-drawableName = "ic_home"
+-- drawableName :: String
+-- drawableName = "ic_home"
 
 drawableDirsIn :: FilePath -> Shell FilePath
 drawableDirsIn path = find (choice dirPatterns) path
@@ -68,8 +69,15 @@ copyFiles :: [FilePath] -> [FilePath] -> IO ()
 copyFiles sourceFiles destFiles = do
   mapM_ (\(src,dst) -> cp src dst) (zip sourceFiles destFiles)
 
+printUsage :: IO [String]
+printUsage = do
+  putStrLn "Usage: dscp drawableName sourceDirectory targetDirectory"
+  exitFailure
+  return []
+
 main = do
-  let name = drawableName
+  args <- getArgs
+  (name:sourceRootDir:targetRootDir:_) <- do if length args < 3 then printUsage else return args
   checkResult <- checkDirs (sourceRootDir,targetRootDir)
   (srcRoot, dstRoot) <- case checkResult of
     Left error -> do putStrLn error; exitFailure
@@ -79,15 +87,14 @@ main = do
   let sDirNames = map filename sDrawableDirs
   let dDirNames = map filename dDrawableDirs
   let commonDirNames = intersect sDirNames dDirNames
-  -- putStrLn $ "srcRoot: " ++ (show srcRoot)
-  -- putStrLn $ "dstRoot: " ++ (show dstRoot)
-  -- putStrLn $ "srcDirs: " ++ (show sDrawableDirs)
-  -- putStrLn $ "dstDirs: " ++ (show dDrawableDirs)
-  -- putStrLn $ "commonDirs: " ++ (show commonDirNames)
+  when (null commonDirNames) $ do putStrLn "No common drawable dirs in source/target"; exitFailure
   -- TODO find a correct extension?
   -- TODO check which dirs contain the needed file and warn if it misses in some configs
   sourceFiles <- fileListInRoot name srcRoot commonDirNames
   let destFiles = map (getDestPath name dstRoot) sourceFiles
+  when (null sourceFiles) $ do
+    putStrLn ("No drawables named '" ++ name ++ "' found in source dirs")
+    exitFailure
   printActionSummary sourceFiles destFiles
   copyFiles sourceFiles destFiles
   putStrLn $ "Successfully copied " ++ (show $ length sourceFiles) ++ " files"
